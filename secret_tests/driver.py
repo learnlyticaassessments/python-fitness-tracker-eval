@@ -1,9 +1,8 @@
 import importlib.util
 import datetime
 import os
-import inspect
-import pandas as pd
 import numpy as np
+import inspect
 
 def test_student_code(solution_path):
     report_dir = os.path.join(os.path.dirname(__file__), "..", "student_workspace")
@@ -14,105 +13,167 @@ def test_student_code(solution_path):
     student_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(student_module)
 
-    PatientManager = student_module.PatientManager
-    manager = PatientManager()
+    report_lines = [f"\n=== Fitness Tracker Test Run at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="]
 
-    report_lines = [f"\n=== Patient Manager Test Run at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="]
-
-    # Define test cases
     test_cases = [
         {
-            "desc": "Create Patient DataFrame",
-            "func": "create_patient_df",
-            "input": [[101, 'Cardiology', '2023-01-10', '2023-01-13', 450], [102, 'Neurology', '2023-01-11', '2023-01-18', 300]],
-            "expected_shape": (2, 5)
+            "desc": "Create Step Series",
+            "func": "create_step_series",
+            "input": [1000, 3000, 5000],
+            "expected": np.array([1000, 3000, 5000])
         },
         {
-            "desc": "Fetch Top 1 Bill",
-            "func": "top_n_bills",
-            "input": 1,
-            "expected_first_id": 101
+            "desc": "Validate Step Data - Valid",
+            "func": "validate_steps",
+            "input": np.array([1000, 3000, 5000]),
+            "expected": True
         },
         {
-            "desc": "Stay Duration Categorization",
-            "func": "categorize_stay_duration",
-            "input": None,
-            "expected_col": "Stay Category"
+            "desc": "Compute Fitness Summary",
+            "func": "compute_fitness_summary",
+            "input": np.array([3000, 7000, 9000]),
+            "expected": (19000, 6333.33, 9000)
         },
         {
-            "desc": "High Billing Patients (Hidden)",
-            "func": "get_high_billing_patients",
-            "input": 300,
-            "expected": [101]
+            "desc": "Apply Bonus Points",
+            "func": "apply_bonus_points",
+            "input": np.array([2000, 7000, 8000]),
+            "expected": np.array([2000, 7100, 8100])
         },
         {
-            "desc": "Edge Stay Duration Categorization (Hidden)",
-            "func": "categorize_stay_duration",
-            "input": None,
-            "expected_categories": ["Short Stay", "Normal Stay", "Extended Stay"]
+            "desc": "Validate Step Data - Invalid",
+            "func": "validate_steps",
+            "input": np.array([3000, -500, 4000]),
+            "expected": False
         }
     ]
 
     edge_cases = [
-        {"func": "create_patient_df", "desc": "Function contains only pass"},
-        {"func": "top_n_bills", "desc": "Function contains only pass"},
-        {"func": "categorize_stay_duration", "desc": "Function contains only pass"},
-        {"func": "get_high_billing_patients", "desc": "Function contains only pass"},
-        {"func": "create_patient_df", "desc": "Hardcoded return", "input": [[101, 'Cardiology', '2023-01-10', '2023-01-13', 450]], "expected_shape": (1, 5)},
+        {
+            "func": "create_step_series",
+            "input": [1000, 3000, 5000],
+            "expected": np.array([1000, 3000, 5000]),
+            "desc": "Hardcoded step array return"
+        },
+        {
+            "func": "validate_steps",
+            "input": np.array([-1, 0, 1]),
+            "expected": False,
+            "desc": "Negative steps not handled"
+        },
+        {
+            "func": "compute_fitness_summary",
+            "input": np.array([1, 1, 1]),
+            "expected": (3, 1.0, 1),
+            "desc": "Hardcoded summary values"
+        },
+        {
+            "func": "apply_bonus_points",
+            "input": np.array([7000, 8000, 6500]),
+            "expected": np.array([7100, 8100, 6500]),
+            "desc": "Bonus logic hardcoded or missing"
+        },
+        # Pass-only checks
+        {
+            "func": "create_step_series",
+            "input": None,
+            "expected": None,
+            "desc": "Function contains only 'pass' statement"
+        },
+        {
+            "func": "validate_steps",
+            "input": None,
+            "expected": None,
+            "desc": "Function contains only 'pass' statement"
+        },
+        {
+            "func": "compute_fitness_summary",
+            "input": None,
+            "expected": None,
+            "desc": "Function contains only 'pass' statement"
+        },
+        {
+            "func": "apply_bonus_points",
+            "input": None,
+            "expected": None,
+            "desc": "Function contains only 'pass' statement"
+        }
     ]
 
-    # Execute test cases
     for i, case in enumerate(test_cases, 1):
         try:
+            func = getattr(student_module, case["func"])
             edge_case_failed = False
-            failing_reason = None
+            failing_edge_case_desc = None
 
-            for edge in edge_cases:
-                if edge["func"] != case["func"]:
-                    continue
-                src = inspect.getsource(getattr(PatientManager, edge["func"])).replace(" ", "").replace("\n", "").lower()
-                if "pass" in src and len(src) < 80:
-                    edge_case_failed = True
-                    failing_reason = "Function contains only pass"
-                    break
-                if "expected_shape" in edge:
-                    manager.create_patient_df(edge["input"])
-                    if manager.df.shape == edge["expected_shape"]:
-                        if all(k not in src for k in ["dataframe", "columns", "pd."]):
-                            edge_case_failed = True
-                            failing_reason = "Hardcoded return shape"
-                            break
+            for edge_case in edge_cases:
+                if edge_case["func"] == case["func"]:
+                    edge_func = getattr(student_module, edge_case["func"])
+                    src = inspect.getsource(edge_func).replace(" ", "").replace("\n", "").lower()
 
-            # Run actual test logic
-            if case["func"] == "create_patient_df":
-                manager.create_patient_df(case["input"])
-                passed = manager.df.shape == case["expected_shape"]
-                result = f"Shape={manager.df.shape}"
-            elif case["func"] == "top_n_bills":
-                result_df = manager.df.sort_values(by='bill_amount', ascending=False).head(case["input"])
-                first_id = result_df.iloc[0]['patient_id']
-                passed = first_id == case["expected_first_id"]
-                result = f"First patient_id={first_id}"
-            elif case["func"] == "categorize_stay_duration":
-                manager.categorize_stay_duration()
-                if "expected_col" in case:
-                    passed = "Stay Category" in manager.df.columns
-                    result = "Stay Category present" if passed else "Column missing"
-                else:
-                    unique_cats = manager.df["Stay Category"].unique().tolist()
-                    passed = all(cat in unique_cats for cat in case["expected_categories"])
-                    result = unique_cats
-            elif case["func"] == "get_high_billing_patients":
-                result = manager.get_high_billing_patients(case["input"])
-                passed = result == case["expected"]
+                    # Fail if only 'pass'
+                    if 'pass' in src and len(src) < 80:
+                        edge_case_failed = True
+                        failing_edge_case_desc = "Function contains only pass statement"
+                        break
 
-            # Decide final verdict
+                    # Run edge case input if applicable
+                    if edge_case["input"] is not None:
+                        result = edge_func(edge_case["input"])
+                        expected = edge_case["expected"]
+
+                        if isinstance(expected, np.ndarray):
+                            passed = np.array_equal(result, expected)
+                        elif isinstance(expected, tuple):
+                            passed = all(round(a, 2) == round(b, 2) for a, b in zip(result, expected))
+                        else:
+                            passed = result == expected
+
+                        # Check if correct result is returned with no logic
+                        if passed:
+                            if (
+                                "sum" not in src and "mean" not in src and "max" not in src and
+                                "np." not in src and "+" not in src and "*" not in src and "/" not in src
+                            ):
+                                edge_case_failed = True
+                                failing_edge_case_desc = edge_case["desc"]
+                                break
+
+                            # Additional check for exact hardcoded return line
+                            if edge_case["func"] == "create_step_series" and "returnnp.array([1000,3000,5000])" in src:
+                                edge_case_failed = True
+                                failing_edge_case_desc = "Hardcoded return: np.array with fixed values"
+                                break
+
+                            if edge_case["func"] == "compute_fitness_summary" and "return(3,1.0,1)" in src:
+                                edge_case_failed = True
+                                failing_edge_case_desc = "Hardcoded return: tuple with fixed values"
+                                break
+
+                            if edge_case["func"] == "validate_steps" and "returntrue" in src:
+                                edge_case_failed = True
+                                failing_edge_case_desc = "Hardcoded return: always True"
+                                break
+
             if edge_case_failed:
-                msg = f"❌ Test Case {i} Failed: {case['desc']} | Reason: Edge case validation failed - {failing_reason}"
-            elif passed:
-                msg = f"✅ Test Case {i} Passed: {case['desc']} | Result={result}"
+                msg = (
+                    f"❌ Test Case {i} Failed: {case['desc']} "
+                    f"| Reason: Edge case validation failed - {failing_edge_case_desc}."
+                )
             else:
-                msg = f"❌ Test Case {i} Failed: {case['desc']} | Result={result}"
+                result = func(case["input"])
+                expected = case["expected"]
+                if isinstance(expected, np.ndarray):
+                    passed = np.array_equal(result, expected)
+                elif isinstance(expected, tuple):
+                    passed = all(round(a, 2) == round(b, 2) for a, b in zip(result, expected))
+                else:
+                    passed = result == expected
+
+                if passed:
+                    msg = f"✅ Test Case {i} Passed: {case['desc']} | Actual={result}"
+                else:
+                    msg = f"❌ Test Case {i} Failed: {case['desc']} | Expected={expected} | Actual={result}"
 
             print(msg)
             report_lines.append(msg)
@@ -128,24 +189,3 @@ def test_student_code(solution_path):
 if __name__ == "__main__":
     solution_file = os.path.join(os.path.dirname(__file__), "..", "student_workspace", "solution.py")
     test_student_code(solution_file)
-
-class PatientManager:
-    def __init__(self):
-        self.df = pd.DataFrame()
-
-    def create_patient_df(self, data):
-        self.df = pd.DataFrame(data, columns=['patient_id', 'department', 'admission_date', 'discharge_date', 'bill_amount'])
-
-    def categorize_stay_duration(self):
-        self.df['admission_date'] = pd.to_datetime(self.df['admission_date'])
-        self.df['discharge_date'] = pd.to_datetime(self.df['discharge_date'])
-        stay_length = (self.df['discharge_date'] - self.df['admission_date']).dt.days
-        print(self.df[['check_in', 'discharge']])
-        print(stay_length)
-        conditions = [
-            stay_length <= 3,
-            (stay_length > 3) & (stay_length <= 7),
-            stay_length > 7
-        ]
-        choices = ['Short Stay', 'Normal Stay', 'Extended Stay']
-        self.df['Stay Category'] = np.select(conditions, choices)
