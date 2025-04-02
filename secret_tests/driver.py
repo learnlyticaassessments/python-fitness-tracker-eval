@@ -2,6 +2,7 @@ import importlib.util
 import datetime
 import os
 import numpy as np
+import random
 import inspect
 
 def test_student_code(solution_path):
@@ -48,132 +49,64 @@ def test_student_code(solution_path):
         }
     ]
 
-    edge_cases = [
-        {
-            "func": "create_step_series",
-            "input": [1000, 3000, 5000],
-            "expected": np.array([1000, 3000, 5000]),
-            "desc": "Hardcoded step array return"
-        },
-        {
-            "func": "validate_steps",
-            "input": np.array([-1, 0, 1]),
-            "expected": False,
-            "desc": "Negative steps not handled"
-        },
-        {
-            "func": "compute_fitness_summary",
-            "input": np.array([1, 1, 1]),
-            "expected": (3, 1.0, 1),
-            "desc": "Hardcoded summary values"
-        },
-        {
-            "func": "apply_bonus_points",
-            "input": np.array([7000, 8000, 6500]),
-            "expected": np.array([7100, 8100, 6500]),
-            "desc": "Bonus logic hardcoded or missing"
-        },
-        # Pass-only checks
-        {
-            "func": "create_step_series",
-            "input": None,
-            "expected": None,
-            "desc": "Function contains only 'pass' statement"
-        },
-        {
-            "func": "validate_steps",
-            "input": None,
-            "expected": None,
-            "desc": "Function contains only 'pass' statement"
-        },
-        {
-            "func": "compute_fitness_summary",
-            "input": None,
-            "expected": None,
-            "desc": "Function contains only 'pass' statement"
-        },
-        {
-            "func": "apply_bonus_points",
-            "input": None,
-            "expected": None,
-            "desc": "Function contains only 'pass' statement"
-        }
-    ]
-
+    # Run all tests
     for i, case in enumerate(test_cases, 1):
         try:
             func = getattr(student_module, case["func"])
-            edge_case_failed = False
-            failing_edge_case_desc = None
+            result = func(case["input"])
 
-            for edge_case in edge_cases:
-                if edge_case["func"] == case["func"]:
-                    edge_func = getattr(student_module, edge_case["func"])
-                    src = inspect.getsource(edge_func).replace(" ", "").replace("\n", "").lower()
-
-                    # Fail if only 'pass'
-                    if 'pass' in src and len(src) < 80:
-                        edge_case_failed = True
-                        failing_edge_case_desc = "Function contains only pass statement"
-                        break
-
-                    # Run edge case input if applicable
-                    if edge_case["input"] is not None:
-                        result = edge_func(edge_case["input"])
-                        expected = edge_case["expected"]
-
-                        if isinstance(expected, np.ndarray):
-                            passed = np.array_equal(result, expected)
-                        elif isinstance(expected, tuple):
-                            passed = all(round(a, 2) == round(b, 2) for a, b in zip(result, expected))
-                        else:
-                            passed = result == expected
-
-                        # Check if correct result is returned with no logic
-                        if passed:
-                            if (
-                                "sum" not in src and "mean" not in src and "max" not in src and
-                                "np." not in src and "+" not in src and "*" not in src and "/" not in src
-                            ):
-                                edge_case_failed = True
-                                failing_edge_case_desc = edge_case["desc"]
-                                break
-
-                            # Additional check for exact hardcoded return line
-                            if edge_case["func"] == "create_step_series" and "returnnp.array([1000,3000,5000])" in src:
-                                edge_case_failed = True
-                                failing_edge_case_desc = "Hardcoded return: np.array with fixed values"
-                                break
-
-                            if edge_case["func"] == "compute_fitness_summary" and "return(3,1.0,1)" in src:
-                                edge_case_failed = True
-                                failing_edge_case_desc = "Hardcoded return: tuple with fixed values"
-                                break
-
-                            if edge_case["func"] == "validate_steps" and "returntrue" in src:
-                                edge_case_failed = True
-                                failing_edge_case_desc = "Hardcoded return: always True"
-                                break
-
-            if edge_case_failed:
-                msg = (
-                    f"❌ Test Case {i} Failed: {case['desc']} "
-                    f"| Reason: Edge case validation failed - {failing_edge_case_desc}."
-                )
+            if isinstance(case["expected"], np.ndarray):
+                passed = np.array_equal(result, case["expected"])
+            elif isinstance(case["expected"], tuple):
+                passed = all(round(a, 2) == round(b, 2) for a, b in zip(result, case["expected"]))
             else:
-                result = func(case["input"])
-                expected = case["expected"]
-                if isinstance(expected, np.ndarray):
-                    passed = np.array_equal(result, expected)
-                elif isinstance(expected, tuple):
-                    passed = all(round(a, 2) == round(b, 2) for a, b in zip(result, expected))
-                else:
-                    passed = result == expected
+                passed = result == case["expected"]
 
-                if passed:
-                    msg = f"✅ Test Case {i} Passed: {case['desc']} | Actual={result}"
-                else:
-                    msg = f"❌ Test Case {i} Failed: {case['desc']} | Expected={expected} | Actual={result}"
+            # --- Randomized logic test (anti-hardcoding)
+            random_failed = False
+            try:
+                rand_func = getattr(student_module, case["func"])
+                if case["func"] == "create_step_series":
+                    rand_input = [random.randint(1000, 10000) for _ in range(5)]
+                    expected = np.array(rand_input)
+                    output = rand_func(rand_input)
+                    random_failed = not np.array_equal(output, expected)
+
+                elif case["func"] == "validate_steps":
+                    valid_input = np.array([random.randint(0, 10000) for _ in range(5)])
+                    invalid_input = np.array([1000, -1])
+                    if not rand_func(valid_input):
+                        random_failed = True
+                    if rand_func(invalid_input):
+                        random_failed = True
+
+                elif case["func"] == "compute_fitness_summary":
+                    steps = np.array([random.randint(1000, 10000) for _ in range(3)])
+                    total = int(np.sum(steps))
+                    avg = round(np.mean(steps), 2)
+                    max_val = int(np.max(steps))
+                    expected = (total, avg, max_val)
+                    result = rand_func(steps)
+                    random_failed = not all(round(a, 2) == round(b, 2) for a, b in zip(result, expected))
+
+                elif case["func"] == "apply_bonus_points":
+                    steps = np.array([random.randint(2000, 8000) for _ in range(3)])
+                    expected = steps.copy()
+                    for i in range(len(expected)):
+                        if expected[i] >= 7000:
+                            expected[i] += 100
+                    output = rand_func(steps)
+                    random_failed = not np.array_equal(output, expected)
+
+            except Exception:
+                random_failed = True
+
+            if random_failed:
+                msg = f"❌ Test Case {i} Failed: {case['desc']} | Reason: Randomized logic failure for {case['func']}"
+            elif passed:
+                msg = f"✅ Test Case {i} Passed: {case['desc']}"
+            else:
+                msg = f"❌ Test Case {i} Failed: {case['desc']} | Expected={case['expected']} | Actual={result}"
 
             print(msg)
             report_lines.append(msg)
