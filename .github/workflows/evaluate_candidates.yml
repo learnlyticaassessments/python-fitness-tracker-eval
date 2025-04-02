@@ -1,4 +1,4 @@
-name: Run Hospital Patient Management Evaluator
+name: Run Fitness Tracker Evaluator
 
 on:
   workflow_dispatch:
